@@ -131,270 +131,525 @@ footer b{color:var(--ink);font-weight:600}
 <div class="toast" id="toast"></div>
 
 <script>
-// ============ BEÁLLÍTÁSOK – ezeket kell kitölteni ============
+// Régi telefonok: hiányzó függvények pótlása + látható hibajelzés
+(function(){
+  if(!String.prototype.padStart){String.prototype.padStart=function(n,c){var s=String(this);c=c===undefined?' ':String(c);while(s.length<n)s=c+s;return s.length>n&&c.length>1?s.slice(s.length-n):s;};}
+  if(!Object.values){Object.values=function(o){return Object.keys(o).map(function(k){return o[k];});};}
+  if(!Array.prototype.includes){Array.prototype.includes=function(v){return this.indexOf(v)!==-1;};}
+  if(!String.prototype.includes){String.prototype.includes=function(v){return this.indexOf(v)!==-1;};}
+  if(!String.prototype.normalize){String.prototype.normalize=function(){return String(this);};}
+  if(window.NodeList&&!NodeList.prototype.forEach){NodeList.prototype.forEach=Array.prototype.forEach;}
+  if(window.Element&&!Element.prototype.closest){Element.prototype.closest=function(s){var el=this;while(el&&el.nodeType===1){if((el.matches||el.webkitMatchesSelector).call(el,s))return el;el=el.parentElement;}return null;};}
+  window.onerror=function(msg,src,line){try{var d=document.getElementById('jsErr');if(!d){d=document.createElement('div');d.id='jsErr';d.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;background:#9b3326;color:#fff;padding:10px;border-radius:10px;font:13px sans-serif;z-index:99';document.body.appendChild(d);}d.textContent='Hiba: '+msg+' (sor '+line+') – '+navigator.userAgent;}catch(e){}};
+})();
+</script>
+<script>
 const CONFIG = {
-  shopName: 'BUKÓ-firma, s.r.o.',
-  ico: '46760474',
-  address: 'Hadabuda 633/17, 079 01 Veľké Kapušany',
-  email: 'bukofirma.obchod@gmail.com',
-  phone: '+421908984927',        // a „Hívás” gomb ezt tárcsázza
-  phoneDisplay: '0908 984 927',  // így jelenik meg a képernyőn
-  mapsQuery: 'BUKÓ-firma s.r.o., Hadabuda 633/17, 079 01 Veľké Kapušany',
-  stockUrl: 'https://raw.githubusercontent.com/mateka64-lgtm/buko-keszlet/main/stock.json', // óránként frissül
-  fallbackUrl: 'stock.json',   // az alkalmazásba csomagolt tartalék, ha nincs internet és nincs mentett adat          // az óránként frissülő készlet JSON címe; üresen a minta adatokat mutatja
-  showPrice: true, showQty: true, lowLimit: 0   // 0 = „kevés” csak ott, ahol az IFOsoft kártyán ki van töltve a Min. množstvo
+  shopName: "BUKÓ-firma, s.r.o.",
+  ico: "46760474",
+  address: "Hadabuda 633/17, 079 01 Veľké Kapušany",
+  email: "bukofirma.obchod@gmail.com",
+  phone: "+421908984927",
+  // a „Hívás” gomb ezt tárcsázza
+  phoneDisplay: "0908 984 927",
+  // így jelenik meg a képernyőn
+  mapsQuery: "BUKÓ-firma s.r.o., Hadabuda 633/17, 079 01 Veľké Kapušany",
+  stockUrl: "https://raw.githubusercontent.com/mateka64-lgtm/buko-keszlet/main/stock.json",
+  // óránként frissül
+  fallbackUrl: "stock.json",
+  // az alkalmazásba csomagolt tartalék, ha nincs internet és nincs mentett adat          // az óránként frissülő készlet JSON címe; üresen a minta adatokat mutatja
+  showPrice: true,
+  showQty: true,
+  lowLimit: 0
+  // 0 = „kevés” csak ott, ahol az IFOsoft kártyán ki van töltve a Min. množstvo
 };
-const RUNNER = 'sk.bukofirma.keszlet.check';
-// =============================================================
-
+const RUNNER = "sk.bukofirma.keszlet.check";
 const T = {
-  hu:{sub:'Stavebniny · raktárkészlet',search:'Keresés: név, kártyaszám, vonalkód…',all:'Mind',only:'Csak ami raktáron van',
-      items:n=>n.toLocaleString('hu-HU')+' tétel',ok:'Raktáron',low:'Kevés van',no:'Nincs raktáron',empty:'Nincs találat.',
-      hours:'Nyitvatartás',hoursTxt:'H–P 7:00–16:00 · Szo 8:00–12:00',
-      note:'A készlet tájékoztató jellegű. Nagyobb mennyiségnél érdemes előtte telefonálni.',
-      vat:'s DPH',live:t=>'Élő készlet · frissítve '+t+' · óránként frissül',nIn:'raktáron',nLow:'kevés',nNo:'nincs',
-      sample:'A tételek egyelőre minta adatok.',onStock:'van raktáron',perUnit:'egységár',code:'Kártyaszám',
-      info:'Készlet frissítése óránként, hétköznap 7:00 és 16:00 között. Nagyobb mennyiségnél érdemes előre telefonálni, hogy félretegyük.',
-      close:'Bezár',noStockInfo:'Jelenleg nincs raktáron – rendelésre beszerezzük.',
-      call:'Hívás',route:'Útvonal',watchBtn:'Szólj, ha megjött',watching:'Figyelve – szólunk, ha megjött',
-      watchOn:'Értesítünk, amint megérkezik.',watchOff:'Figyelés kikapcsolva.',watched:n=>'Figyelt ('+n+')',
-      noPhone:'A telefonszám még nincs beállítva.',perm:'Az értesítéshez engedélyezd az értesítéseket a beállításokban.',
-      webOnly:'Telefonos értesítés csak az alkalmazásban működik – itt csak megjelöljük.',
-      arrived:n=>'Megérkezett: '+n,notifTitle:'Megérkezett!',notifBody:n=>n+' újra raktáron van a BUKÓ stavebninyben.',
-      today:'ma',yesterday:'tegnap',phoneLabel:'Telefon',loading:'Készlet betöltése…',loadErr:'Nem sikerült betölteni a készletet. Ellenőrizd az internetkapcsolatot.',more:n=>'+ még '+n.toLocaleString('hu-HU')+' tétel – írj be keresést a szűkítéshez.'},
-  sk:{sub:'Stavebniny · skladové zásoby',search:'Hľadať: názov, číslo karty, EAN…',all:'Všetko',only:'Len to, čo je na sklade',
-      items:n=>n.toLocaleString('sk-SK')+' položiek',ok:'Na sklade',low:'Posledné kusy',no:'Nie je na sklade',empty:'Nič sa nenašlo.',
-      hours:'Otváracie hodiny',hoursTxt:'Po–Pi 7:00–16:00 · So 8:00–12:00',
-      note:'Stav zásob je orientačný. Pri väčšom množstve odporúčame vopred zavolať.',
-      vat:'s DPH',live:t=>'Živé zásoby · aktualizované '+t+' · každú hodinu',nIn:'na sklade',nLow:'posledné kusy',nNo:'nie je',
-      sample:'Položky sú zatiaľ vzorové údaje.',onStock:'na sklade',perUnit:'jednotková cena',code:'Číslo karty',
-      info:'Zásoby sa aktualizujú každú hodinu, v pracovné dni od 7:00 do 16:00. Pri väčšom množstve odporúčame vopred zavolať, aby sme tovar odložili.',
-      close:'Zavrieť',noStockInfo:'Momentálne nie je na sklade – na objednávku zabezpečíme.',
-      call:'Zavolať',route:'Navigovať',watchBtn:'Dajte vedieť, keď príde',watching:'Sledované – dáme vedieť, keď príde',
-      watchOn:'Dáme vám vedieť, keď tovar príde.',watchOff:'Sledovanie vypnuté.',watched:n=>'Sledované ('+n+')',
-      noPhone:'Telefónne číslo ešte nie je nastavené.',perm:'Na upozornenia povoľte notifikácie v nastaveniach.',
-      webOnly:'Upozornenie na telefón funguje len v aplikácii – tu sa iba označí.',
-      arrived:n=>'Prišlo na sklad: '+n,notifTitle:'Tovar je na sklade!',notifBody:n=>n+' je opäť na sklade v stavebninách BUKÓ.',
-      today:'dnes',yesterday:'včera',phoneLabel:'Telefón',loading:'Načítavam zásoby…',loadErr:'Zásoby sa nepodarilo načítať. Skontrolujte pripojenie na internet.',more:n=>'+ ďalších '+n.toLocaleString('sk-SK')+' položiek – spresnite vyhľadávanie.'}
+  hu: {
+    sub: "Stavebniny · raktárkészlet",
+    search: "Keresés: név, kártyaszám, vonalkód…",
+    all: "Mind",
+    only: "Csak ami raktáron van",
+    items: (n) => n.toLocaleString("hu-HU") + " tétel",
+    ok: "Raktáron",
+    low: "Kevés van",
+    no: "Nincs raktáron",
+    empty: "Nincs találat.",
+    hours: "Nyitvatartás",
+    hoursTxt: "H–P 7:00–16:00 · Szo 8:00–12:00",
+    note: "A készlet tájékoztató jellegű. Nagyobb mennyiségnél érdemes előtte telefonálni.",
+    vat: "s DPH",
+    live: (t) => "Élő készlet · frissítve " + t + " · óránként frissül",
+    nIn: "raktáron",
+    nLow: "kevés",
+    nNo: "nincs",
+    sample: "A tételek egyelőre minta adatok.",
+    onStock: "van raktáron",
+    perUnit: "egységár",
+    code: "Kártyaszám",
+    info: "Készlet frissítése óránként, hétköznap 7:00 és 16:00 között. Nagyobb mennyiségnél érdemes előre telefonálni, hogy félretegyük.",
+    close: "Bezár",
+    noStockInfo: "Jelenleg nincs raktáron – rendelésre beszerezzük.",
+    call: "Hívás",
+    route: "Útvonal",
+    watchBtn: "Szólj, ha megjött",
+    watching: "Figyelve – szólunk, ha megjött",
+    watchOn: "Értesítünk, amint megérkezik.",
+    watchOff: "Figyelés kikapcsolva.",
+    watched: (n) => "Figyelt (" + n + ")",
+    noPhone: "A telefonszám még nincs beállítva.",
+    perm: "Az értesítéshez engedélyezd az értesítéseket a beállításokban.",
+    webOnly: "Telefonos értesítés csak az alkalmazásban működik – itt csak megjelöljük.",
+    arrived: (n) => "Megérkezett: " + n,
+    notifTitle: "Megérkezett!",
+    notifBody: (n) => n + " újra raktáron van a BUKÓ stavebninyben.",
+    today: "ma",
+    yesterday: "tegnap",
+    phoneLabel: "Telefon",
+    loading: "Készlet betöltése…",
+    loadErr: "Nem sikerült betölteni a készletet. Ellenőrizd az internetkapcsolatot.",
+    more: (n) => "+ még " + n.toLocaleString("hu-HU") + " tétel – írj be keresést a szűkítéshez."
+  },
+  sk: {
+    sub: "Stavebniny · skladové zásoby",
+    search: "Hľadať: názov, číslo karty, EAN…",
+    all: "Všetko",
+    only: "Len to, čo je na sklade",
+    items: (n) => n.toLocaleString("sk-SK") + " položiek",
+    ok: "Na sklade",
+    low: "Posledné kusy",
+    no: "Nie je na sklade",
+    empty: "Nič sa nenašlo.",
+    hours: "Otváracie hodiny",
+    hoursTxt: "Po–Pi 7:00–16:00 · So 8:00–12:00",
+    note: "Stav zásob je orientačný. Pri väčšom množstve odporúčame vopred zavolať.",
+    vat: "s DPH",
+    live: (t) => "Živé zásoby · aktualizované " + t + " · každú hodinu",
+    nIn: "na sklade",
+    nLow: "posledné kusy",
+    nNo: "nie je",
+    sample: "Položky sú zatiaľ vzorové údaje.",
+    onStock: "na sklade",
+    perUnit: "jednotková cena",
+    code: "Číslo karty",
+    info: "Zásoby sa aktualizujú každú hodinu, v pracovné dni od 7:00 do 16:00. Pri väčšom množstve odporúčame vopred zavolať, aby sme tovar odložili.",
+    close: "Zavrieť",
+    noStockInfo: "Momentálne nie je na sklade – na objednávku zabezpečíme.",
+    call: "Zavolať",
+    route: "Navigovať",
+    watchBtn: "Dajte vedieť, keď príde",
+    watching: "Sledované – dáme vedieť, keď príde",
+    watchOn: "Dáme vám vedieť, keď tovar príde.",
+    watchOff: "Sledovanie vypnuté.",
+    watched: (n) => "Sledované (" + n + ")",
+    noPhone: "Telefónne číslo ešte nie je nastavené.",
+    perm: "Na upozornenia povoľte notifikácie v nastaveniach.",
+    webOnly: "Upozornenie na telefón funguje len v aplikácii – tu sa iba označí.",
+    arrived: (n) => "Prišlo na sklad: " + n,
+    notifTitle: "Tovar je na sklade!",
+    notifBody: (n) => n + " je opäť na sklade v stavebninách BUKÓ.",
+    today: "dnes",
+    yesterday: "včera",
+    phoneLabel: "Telefón",
+    loading: "Načítavam zásoby…",
+    loadErr: "Zásoby sa nepodarilo načítať. Skontrolujte pripojenie na internet.",
+    more: (n) => "+ ďalších " + n.toLocaleString("sk-SK") + " položiek – spresnite vyhľadávanie."
+  }
 };
-
 const CATS = {
-  spoj:{hu:'Kötőanyagok',sk:'Spojivá'}, mur:{hu:'Falazás',sk:'Murovanie'}, izo:{hu:'Szigetelés',sk:'Izolácie'},
-  sdk:{hu:'Szárazépítés',sk:'Suchá výstavba'}, vyst:{hu:'Betonvas, háló',sk:'Výstuž'},
-  lep:{hu:'Ragasztók, vakolatok',sk:'Lepidlá a omietky'}, drevo:{hu:'Fa, lapok',sk:'Drevo a dosky'},
-  spoj2:{hu:'Kötőelemek',sk:'Spojovací materiál'}
+  spoj: { hu: "Kötőanyagok", sk: "Spojivá" },
+  mur: { hu: "Falazás", sk: "Murovanie" },
+  izo: { hu: "Szigetelés", sk: "Izolácie" },
+  sdk: { hu: "Szárazépítés", sk: "Suchá výstavba" },
+  vyst: { hu: "Betonvas, háló", sk: "Výstuž" },
+  lep: { hu: "Ragasztók, vakolatok", sk: "Lepidlá a omietky" },
+  drevo: { hu: "Fa, lapok", sk: "Drevo a dosky" },
+  spoj2: { hu: "Kötőelemek", sk: "Spojovací materiál" }
 };
-
-// kód, kategória, név, mennyiség, egység, ár (s DPH) – MINTA ADATOK
 const SAMPLE = [
- ['10001','spoj','Cement CEM II/B-S 32,5 R, 25 kg',148,'vrece',6.90],['10002','spoj','Vápno hasené, 25 kg',32,'vrece',7.50],
- ['10003','spoj','Piesok kremičitý 0–4 mm, 25 kg',3,'vrece',3.20],['10004','spoj','Suchý betón C16/20, 25 kg',56,'vrece',5.40],
- ['10101','mur','Tehla brúsená 30 P10',640,'ks',3.85],['10102','mur','Tehla brúsená 44 P10',0,'ks',5.70],
- ['10103','mur','Pórobetónová tvárnica 100 mm',210,'ks',3.10],['10104','mur','Debniaca tvárnica 30 cm',85,'ks',2.95],
- ['10105','mur','Preklad nosný 2000 mm',4,'ks',24.50],['10201','izo','Fasádny polystyrén EPS 70F, 100 mm',38,'bal',27.90],
- ['10202','izo','Fasádny polystyrén EPS 70F, 50 mm',12,'bal',27.90],['10203','izo','Minerálna vlna 100 mm, rolka',0,'bal',41.00],
- ['10204','izo','Hydroizolačná stierka, 15 kg',9,'vedro',48.50],['10205','izo','Asfaltový pás s posypom',2,'rolka',39.90],
- ['10301','sdk','Sadrokartón 12,5 mm, 1250×2000',74,'ks',8.40],['10302','sdk','Sadrokartón impregnovaný 12,5 mm',18,'ks',11.20],
- ['10303','sdk','Profil CW 50, 3 m',120,'ks',3.60],['10304','sdk','Profil UW 50, 4 m',46,'ks',4.10],
- ['10305','sdk','Tmel na sadrokartón, 25 kg',0,'vrece',19.90],['10401','vyst','Kari sieť 150×150×6, 2×3 m',22,'ks',21.50],
- ['10402','vyst','Betonárska oceľ R10, 6 m',150,'ks',5.30],['10403','vyst','Betonárska oceľ R12, 6 m',3,'ks',7.60],
- ['10404','vyst','Viazací drôt 1,2 mm',11,'kg',2.80],['10501','lep','Lepidlo na obklady C1T, 25 kg',63,'vrece',9.90],
- ['10502','lep','Lepidlo flexibilné C2TE S1, 25 kg',17,'vrece',18.90],['10503','lep','Lepidlo na polystyrén, 25 kg',40,'vrece',8.70],
- ['10504','lep','Jadrová omietka, 30 kg',27,'vrece',7.40],['10505','lep','Penetrácia hĺbková, 5 l',5,'ks',14.90],
- ['10506','lep','Škárovacia hmota sivá, 5 kg',14,'ks',12.50],['10601','drevo','OSB doska 18 mm, 2500×1250',16,'ks',36.90],
- ['10602','drevo','Hranol 100×100 mm, 4 m',0,'ks',19.80],['10603','drevo','Lata strešná 40×60 mm, 4 m',95,'ks',3.40],
- ['10701','spoj2','Hmoždinka 10×60, 50 ks',24,'bal',4.20],['10702','spoj2','Skrutky do sadrokartónu 3,5×25, 1000 ks',8,'bal',9.60],
- ['10703','spoj2','Klince stavebné 100 mm, 1 kg',1,'kg',3.10]
+  ["10001", "spoj", "Cement CEM II/B-S 32,5 R, 25 kg", 148, "vrece", 6.9],
+  ["10002", "spoj", "Vápno hasené, 25 kg", 32, "vrece", 7.5],
+  ["10003", "spoj", "Piesok kremičitý 0–4 mm, 25 kg", 3, "vrece", 3.2],
+  ["10004", "spoj", "Suchý betón C16/20, 25 kg", 56, "vrece", 5.4],
+  ["10101", "mur", "Tehla brúsená 30 P10", 640, "ks", 3.85],
+  ["10102", "mur", "Tehla brúsená 44 P10", 0, "ks", 5.7],
+  ["10103", "mur", "Pórobetónová tvárnica 100 mm", 210, "ks", 3.1],
+  ["10104", "mur", "Debniaca tvárnica 30 cm", 85, "ks", 2.95],
+  ["10105", "mur", "Preklad nosný 2000 mm", 4, "ks", 24.5],
+  ["10201", "izo", "Fasádny polystyrén EPS 70F, 100 mm", 38, "bal", 27.9],
+  ["10202", "izo", "Fasádny polystyrén EPS 70F, 50 mm", 12, "bal", 27.9],
+  ["10203", "izo", "Minerálna vlna 100 mm, rolka", 0, "bal", 41],
+  ["10204", "izo", "Hydroizolačná stierka, 15 kg", 9, "vedro", 48.5],
+  ["10205", "izo", "Asfaltový pás s posypom", 2, "rolka", 39.9],
+  ["10301", "sdk", "Sadrokartón 12,5 mm, 1250×2000", 74, "ks", 8.4],
+  ["10302", "sdk", "Sadrokartón impregnovaný 12,5 mm", 18, "ks", 11.2],
+  ["10303", "sdk", "Profil CW 50, 3 m", 120, "ks", 3.6],
+  ["10304", "sdk", "Profil UW 50, 4 m", 46, "ks", 4.1],
+  ["10305", "sdk", "Tmel na sadrokartón, 25 kg", 0, "vrece", 19.9],
+  ["10401", "vyst", "Kari sieť 150×150×6, 2×3 m", 22, "ks", 21.5],
+  ["10402", "vyst", "Betonárska oceľ R10, 6 m", 150, "ks", 5.3],
+  ["10403", "vyst", "Betonárska oceľ R12, 6 m", 3, "ks", 7.6],
+  ["10404", "vyst", "Viazací drôt 1,2 mm", 11, "kg", 2.8],
+  ["10501", "lep", "Lepidlo na obklady C1T, 25 kg", 63, "vrece", 9.9],
+  ["10502", "lep", "Lepidlo flexibilné C2TE S1, 25 kg", 17, "vrece", 18.9],
+  ["10503", "lep", "Lepidlo na polystyrén, 25 kg", 40, "vrece", 8.7],
+  ["10504", "lep", "Jadrová omietka, 30 kg", 27, "vrece", 7.4],
+  ["10505", "lep", "Penetrácia hĺbková, 5 l", 5, "ks", 14.9],
+  ["10506", "lep", "Škárovacia hmota sivá, 5 kg", 14, "ks", 12.5],
+  ["10601", "drevo", "OSB doska 18 mm, 2500×1250", 16, "ks", 36.9],
+  ["10602", "drevo", "Hranol 100×100 mm, 4 m", 0, "ks", 19.8],
+  ["10603", "drevo", "Lata strešná 40×60 mm, 4 m", 95, "ks", 3.4],
+  ["10701", "spoj2", "Hmoždinka 10×60, 50 ks", 24, "bal", 4.2],
+  ["10702", "spoj2", "Skrutky do sadrokartónu 3,5×25, 1000 ks", 8, "bal", 9.6],
+  ["10703", "spoj2", "Klince stavebné 100 mm, 1 kg", 1, "kg", 3.1]
 ];
-
-// ---------- natív (Android) segédek ----------
 const CAP = window.Capacitor;
 const NATIVE = !!(CAP && CAP.isNativePlatform && CAP.isNativePlatform());
-const plug = n => NATIVE ? CAP.registerPlugin(n) : null;
-const Notif = plug('LocalNotifications'), Launcher = plug('AppLauncher'), Runner = plug('BackgroundRunner'), AppP = plug('App');
-
-let lang='hu', cat='all', only=false, isSample=true, watch=[];
-const mapItem=x=>({code:String(x.code==null?'':x.code),cat:x.cat||'',name:x.name,n2:x.n2||'',ean:x.ean||'',qty:+x.qty||0,min:+x.min||0,unit:x.unit||'',price:+x.price||0});
-const store={ get(k){try{return localStorage.getItem(k);}catch(e){return null;}}, set(k,v){try{localStorage.setItem(k,v);}catch(e){}} };
-let DATA = SAMPLE.map(r=>({code:r[0],cat:r[1],name:r[2],n2:'',ean:'',qty:r[3],unit:r[4],price:r[5]}));
-let updated = lastRun();
-let loading=false;
-function useStock(j){ if(!j||!Array.isArray(j.items)||!j.items.length) return false;
-  DATA=j.items.map(mapItem); if(j.updated) updated=new Date(j.updated); isSample=false; return true; }
-if(window.STOCK_EMBED) useStock(window.STOCK_EMBED);
-else if(CONFIG.stockUrl){
-  let cached=null; try{ cached=JSON.parse(store.get('buko-stock')||'null'); }catch(e){}
-  if(!useStock(cached)){ DATA=[]; loading=true; }
-}
-const MAXROWS=150;
-
-function lastRun(){ const d=new Date(); d.setMinutes(0,0,0);
-  for(let k=0;k<200;k++){ const wd=d.getDay(),hr=d.getHours(); if(wd>=1&&wd<=5&&hr>=7&&hr<=16) return d; d.setHours(hr-1); } return d; }
-
-{ const s=store.get('buko-lang'); if(s==='hu'||s==='sk') lang=s; }
-try{ watch=JSON.parse(store.get('buko-watch')||'[]'); }catch(e){ watch=[]; }
-
-const $=id=>document.getElementById(id);
-const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const norm=s=>String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-const num=(n,d)=>n.toLocaleString('sk-SK',{minimumFractionDigits:d,maximumFractionDigits:d});
-const status=it=>{ const lim=it.min>0?it.min:CONFIG.lowLimit; return it.qty<=0?'no':(lim>0&&it.qty<=lim?'low':'ok'); };
-const catName=it=>CATS[it.cat]?CATS[it.cat][lang]:(it.cat||'');
-const hhmm=d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-const BELL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
-
-function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast.h); toast.h=setTimeout(()=>t.classList.remove('show'),2600); }
-
-// ---------- adatok ----------
-async function loadStock(){
-  if(!CONFIG.stockUrl) return;
-  if(await fetchStock(CONFIG.stockUrl)) return;
-  if(loading&&CONFIG.fallbackUrl&&await fetchStock(CONFIG.fallbackUrl)) return;
-  if(loading){ loading=false; $('list').innerHTML=`<div class="empty">${T[lang].loadErr}</div>`; }
-}
-async function fetchStock(url){
-  try{
-    const u=/^https?:/.test(url)?url+(url.includes('?')?'&':'?')+'t='+Date.now():url;
-    const r=await fetch(u,{cache:'no-store'});
-    const txt=await r.text(); const j=JSON.parse(txt);
-    if(useStock(j)){ loading=false; if(/^https?:/.test(url)) store.set('buko-stock',txt); checkArrived(); applyLang(); return true; }
-  }catch(e){}
-  return false;
-}
-
-// ---------- „Szólj, ha megjött” ----------
-function saveWatch(){
-  store.set('buko-watch',JSON.stringify(watch));
-  if(NATIVE&&Runner){ Runner.dispatchEvent({label:RUNNER,event:'saveWatch',details:{watch:JSON.stringify(watch),url:/^https?:/.test(CONFIG.stockUrl)?CONFIG.stockUrl:'',lang}}).catch(()=>{}); }
-}
-async function toggleWatch(code){
-  const t=T[lang], i=watch.indexOf(code);
-  if(i>=0){ watch.splice(i,1); saveWatch(); toast(t.watchOff); }
-  else{
-    if(NATIVE&&Notif){
-      try{ let p=await Notif.checkPermissions(); if(p.display!=='granted') p=await Notif.requestPermissions();
-        if(p.display!=='granted'){ toast(t.perm); return; } }catch(e){}
-      toast(t.watchOn);
-    } else toast(t.webOnly);
-    watch.push(code); saveWatch();
+const plug = (n) => NATIVE ? CAP.registerPlugin(n) : null;
+const Notif = plug("LocalNotifications"), Launcher = plug("AppLauncher"), Runner = plug("BackgroundRunner"), AppP = plug("App");
+let lang = "hu", cat = "all", only = false, isSample = true, watch = [];
+const mapItem = (x) => ({ code: String(x.code == null ? "" : x.code), cat: x.cat || "", name: x.name, n2: x.n2 || "", ean: x.ean || "", qty: +x.qty || 0, min: +x.min || 0, unit: x.unit || "", price: +x.price || 0 });
+const store = { get(k) {
+  try {
+    return localStorage.getItem(k);
+  } catch (e) {
+    return null;
   }
-  renderChips(); render(); const it=DATA.find(x=>x.code===code); if(it) openSheet(DATA.indexOf(it));
+}, set(k, v) {
+  try {
+    localStorage.setItem(k, v);
+  } catch (e) {
+  }
+} };
+let DATA = SAMPLE.map((r) => ({ code: r[0], cat: r[1], name: r[2], n2: "", ean: "", qty: r[3], unit: r[4], price: r[5] }));
+let updated = lastRun();
+let loading = false;
+function useStock(j) {
+  if (!j || !Array.isArray(j.items) || !j.items.length) return false;
+  DATA = j.items.map(mapItem);
+  if (j.updated) updated = new Date(j.updated);
+  isSample = false;
+  return true;
 }
-function checkArrived(){
-  const t=T[lang], came=DATA.filter(it=>watch.includes(it.code)&&it.qty>0);
-  if(!came.length) return;
-  watch=watch.filter(c=>!came.some(it=>it.code===c)); saveWatch();
-  $('arrived').textContent='🔔 '+t.arrived(came.map(it=>it.name).join(', ')); $('arrived').style.display='block';
+if (window.STOCK_EMBED) useStock(window.STOCK_EMBED);
+else if (CONFIG.stockUrl) {
+  let cached = null;
+  try {
+    cached = JSON.parse(store.get("buko-stock") || "null");
+  } catch (e) {
+  }
+  if (!useStock(cached)) {
+    DATA = [];
+    loading = true;
+  }
 }
-
-// ---------- hívás, útvonal ----------
-function routeUrl(){ return 'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(CONFIG.mapsQuery); }
-async function call(){
-  const t=T[lang]; if(!CONFIG.phone){ toast(t.noPhone); return; }
-  const url='tel:'+CONFIG.phone.replace(/[^+\d]/g,'');
-  if(NATIVE&&Launcher){ try{ await Launcher.openUrl({url}); return; }catch(e){} }
-  location.href=url;
+const MAXROWS = 150;
+function lastRun() {
+  const d = /* @__PURE__ */ new Date();
+  d.setMinutes(0, 0, 0);
+  for (let k = 0; k < 200; k++) {
+    const wd = d.getDay(), hr = d.getHours();
+    if (wd >= 1 && wd <= 5 && hr >= 7 && hr <= 16) return d;
+    d.setHours(hr - 1);
+  }
+  return d;
 }
-async function route(e){
-  if(NATIVE&&Launcher){ e.preventDefault(); try{ await Launcher.openUrl({url:routeUrl()}); }catch(err){ location.href=routeUrl(); } }
+{
+  const s = store.get("buko-lang");
+  if (s === "hu" || s === "sk") lang = s;
 }
-
-// ---------- megjelenítés ----------
-function applyLang(){
-  const t=T[lang];
-  document.documentElement.lang=lang;
-  $('t-sub').textContent=t.sub; $('q').placeholder=t.search; $('t-only').textContent=t.only;
-  const today=new Date(); today.setHours(0,0,0,0); const ud=new Date(updated); ud.setHours(0,0,0,0);
-  const diff=Math.round((today-ud)/864e5);
-  const day=diff===0?t.today:diff===1?t.yesterday:updated.toLocaleDateString(lang==='hu'?'hu-HU':'sk-SK',{weekday:'long'});
-  $('live').textContent=t.live(day+' '+hhmm(updated));
-  $('t-sample').textContent=isSample?t.sample:'';
-  $('t-hours').textContent=t.hours; $('t-hoursTxt').textContent=t.hoursTxt; $('t-note').textContent=t.note;
-  $('shopName').textContent=CONFIG.shopName; $('fName').textContent=CONFIG.shopName;
-  $('fAddr').textContent=CONFIG.address; $('fIco').textContent=CONFIG.ico?'IČO: '+CONFIG.ico:''; $('fMail').textContent=CONFIG.email||'';
-  $('t-call').textContent=t.call; $('t-route').textContent=t.route; $('routeBtn').href=routeUrl();
-  $('phoneTxt').textContent=CONFIG.phoneDisplay?t.phoneLabel+': '+CONFIG.phoneDisplay:'';
-  $('phoneTxt').style.display=CONFIG.phoneDisplay?'':'none';
-  document.querySelectorAll('.lang button').forEach(b=>b.classList.toggle('on',b.dataset.l===lang));
-  renderSum(); renderChips(); render();
+try {
+  watch = JSON.parse(store.get("buko-watch") || "[]");
+} catch (e) {
+  watch = [];
 }
-function renderSum(){
-  const t=T[lang], c={ok:0,low:0,no:0}; DATA.forEach(it=>c[status(it)]++);
-  const f=n=>n.toLocaleString(lang==='hu'?'hu-HU':'sk-SK');
-  $('sum').style.gridTemplateColumns=c.low?'':'1fr 1fr';
-  $('sum').innerHTML=`<div class="s-ok"><b>${f(c.ok)}</b><span>${t.nIn}</span></div>`+(c.low?`<div class="s-low"><b>${f(c.low)}</b><span>${t.nLow}</span></div>`:'')+`<div class="s-no"><b>${f(c.no)}</b><span>${t.nNo}</span></div>`;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const norm = (s) => String(s == null ? "" : s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+const num = (n, d) => n.toLocaleString("sk-SK", { minimumFractionDigits: d, maximumFractionDigits: d });
+const status = (it) => {
+  const lim = it.min > 0 ? it.min : CONFIG.lowLimit;
+  return it.qty <= 0 ? "no" : lim > 0 && it.qty <= lim ? "low" : "ok";
+};
+const catName = (it) => CATS[it.cat] ? CATS[it.cat][lang] : it.cat || "";
+const hhmm = (d) => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast.h);
+  toast.h = setTimeout(() => t.classList.remove("show"), 2600);
 }
-function renderChips(){
-  const keys=[...new Set(DATA.map(it=>it.cat))].filter(Boolean);
-  const wn=watch.filter(c=>DATA.some(it=>it.code===c)).length;
-  if(cat==='watch'&&!wn) cat='all';
-  if(cat!=='all'&&cat!=='watch'&&!keys.includes(cat)) cat='all';
-  let h=`<button class="chip ${cat==='all'?'on':''}" data-c="all">${T[lang].all}</button>`;
-  if(wn) h+=`<button class="chip ${cat==='watch'?'on':''}" data-c="watch">🔔 ${T[lang].watched(wn)}</button>`;
-  h+=keys.map(k=>`<button class="chip ${cat===k?'on':''}" data-c="${esc(k)}">${esc(catName(DATA.find(x=>x.cat===k)))}</button>`).join('');
-  $('chips').innerHTML=h;
-  $('chips').style.display=(keys.length||wn)?'':'none';
+function loadStock() {
+  if (!CONFIG.stockUrl) return Promise.resolve();
+  return fetchStock(CONFIG.stockUrl).then((ok) => {
+    if (ok) return;
+    const fb = loading && CONFIG.fallbackUrl ? fetchStock(CONFIG.fallbackUrl) : Promise.resolve(false);
+    return fb.then((ok2) => {
+      if (!ok2 && loading) {
+        loading = false;
+        $("list").innerHTML = `<div class="empty">${T[lang].loadErr}</div>`;
+      }
+    });
+  });
 }
-function render(){
-  const t=T[lang], words=norm($('q').value).split(/\s+/).filter(Boolean);
-  $('clr').style.display=$('q').value?'block':'none';
-  const rows=DATA.filter(it=>{
-    if(cat==='watch'){ if(!watch.includes(it.code)) return false; }
-    else if(cat!=='all'&&it.cat!==cat) return false;
-    if(only&&it.qty<=0) return false;
-    const hay=norm(it.name+' '+it.n2+' '+it.code+' '+it.ean+' '+catName(it));
-    return words.every(w=>hay.includes(w));
-  }).sort((a,b)=>(a.qty<=0)-(b.qty<=0)||a.name.localeCompare(b.name,'sk'));
-  $('count').textContent=t.items(rows.length);
-  const total=rows.length; const shown=rows.slice(0,MAXROWS);
-  if(loading){ $('list').innerHTML=`<div class="empty">${t.loading}</div>`; return; }
-  if(!rows.length){ $('list').innerHTML=`<div class="empty">${t.empty}</div>`; return; }
-  $('list').innerHTML=shown.map(it=>{
-    const s=status(it), w=watch.includes(it.code);
-    const meta=[it.code,it.n2,catName(it)].filter(Boolean).map(esc).join(' · ');
-    const qty=(CONFIG.showQty&&it.qty>0)?`<div class="qty">${num(it.qty,Number.isInteger(it.qty)?0:2)} ${esc(it.unit)}</div>`:'';
-    const price=(CONFIG.showPrice&&it.price>0)?`<div class="price">${num(it.price,2)} €${it.unit?' / '+esc(it.unit):''}</div>`:'';
-    return `<div class="item" data-i="${DATA.indexOf(it)}"><div><div class="name">${esc(it.name)}${w?`<span class="bell">${BELL}</span>`:''}</div>${meta?`<div class="meta">${meta}</div>`:''}${price}</div>
+function fetchStock(url) {
+  const u = /^https?:/.test(url) ? url + (url.indexOf("?") >= 0 ? "&" : "?") + "t=" + Date.now() : url;
+  return getText(u).then((txt) => {
+    const j = JSON.parse(txt);
+    if (useStock(j)) {
+      loading = false;
+      if (/^https?:/.test(url)) store.set("buko-stock", txt);
+      checkArrived();
+      applyLang();
+      return true;
+    }
+    return false;
+  }).catch(() => false);
+}
+function getText(u) {
+  return new Promise((res, rej) => {
+    try {
+      const x = new XMLHttpRequest();
+      x.open("GET", u, true);
+      x.onload = () => {
+        x.status === 200 || x.status === 0 && x.responseText ? res(x.responseText) : rej(new Error("HTTP " + x.status));
+      };
+      x.onerror = () => rej(new Error("net"));
+      x.send();
+    } catch (e) {
+      rej(e);
+    }
+  });
+}
+function saveWatch() {
+  store.set("buko-watch", JSON.stringify(watch));
+  if (NATIVE && Runner) {
+    Runner.dispatchEvent({ label: RUNNER, event: "saveWatch", details: { watch: JSON.stringify(watch), url: /^https?:/.test(CONFIG.stockUrl) ? CONFIG.stockUrl : "", lang } }).catch(() => {
+    });
+  }
+}
+function toggleWatch(code) {
+  const t = T[lang], i = watch.indexOf(code);
+  const done = () => {
+    renderChips();
+    render();
+    const it = DATA.find((x) => x.code === code);
+    if (it) openSheet(DATA.indexOf(it));
+  };
+  const add = () => {
+    watch.push(code);
+    saveWatch();
+    done();
+  };
+  if (i >= 0) {
+    watch.splice(i, 1);
+    saveWatch();
+    toast(t.watchOff);
+    done();
+    return;
+  }
+  if (NATIVE && Notif) {
+    Notif.checkPermissions().then((p) => p.display === "granted" ? p : Notif.requestPermissions()).then((p) => {
+      if (p.display !== "granted") {
+        toast(t.perm);
+        return;
+      }
+      toast(t.watchOn);
+      add();
+    }).catch(() => {
+      toast(t.watchOn);
+      add();
+    });
+  } else {
+    toast(t.webOnly);
+    add();
+  }
+}
+function checkArrived() {
+  const t = T[lang], came = DATA.filter((it) => watch.includes(it.code) && it.qty > 0);
+  if (!came.length) return;
+  watch = watch.filter((c) => !came.some((it) => it.code === c));
+  saveWatch();
+  $("arrived").textContent = "🔔 " + t.arrived(came.map((it) => it.name).join(", "));
+  $("arrived").style.display = "block";
+}
+function routeUrl() {
+  return "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(CONFIG.mapsQuery);
+}
+function call() {
+  const t = T[lang];
+  if (!CONFIG.phone) {
+    toast(t.noPhone);
+    return;
+  }
+  const url = "tel:" + CONFIG.phone.replace(/[^+\d]/g, "");
+  if (NATIVE && Launcher) {
+    Launcher.openUrl({ url }).catch(() => {
+      location.href = url;
+    });
+    return;
+  }
+  location.href = url;
+}
+function route(e) {
+  if (NATIVE && Launcher) {
+    e.preventDefault();
+    Launcher.openUrl({ url: routeUrl() }).catch(() => {
+      location.href = routeUrl();
+    });
+  }
+}
+function applyLang() {
+  const t = T[lang];
+  document.documentElement.lang = lang;
+  $("t-sub").textContent = t.sub;
+  $("q").placeholder = t.search;
+  $("t-only").textContent = t.only;
+  const today = /* @__PURE__ */ new Date();
+  today.setHours(0, 0, 0, 0);
+  const ud = new Date(updated);
+  ud.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - ud) / 864e5);
+  const day = diff === 0 ? t.today : diff === 1 ? t.yesterday : updated.toLocaleDateString(lang === "hu" ? "hu-HU" : "sk-SK", { weekday: "long" });
+  $("live").textContent = t.live(day + " " + hhmm(updated));
+  $("t-sample").textContent = isSample ? t.sample : "";
+  $("t-hours").textContent = t.hours;
+  $("t-hoursTxt").textContent = t.hoursTxt;
+  $("t-note").textContent = t.note;
+  $("shopName").textContent = CONFIG.shopName;
+  $("fName").textContent = CONFIG.shopName;
+  $("fAddr").textContent = CONFIG.address;
+  $("fIco").textContent = CONFIG.ico ? "IČO: " + CONFIG.ico : "";
+  $("fMail").textContent = CONFIG.email || "";
+  $("t-call").textContent = t.call;
+  $("t-route").textContent = t.route;
+  $("routeBtn").href = routeUrl();
+  $("phoneTxt").textContent = CONFIG.phoneDisplay ? t.phoneLabel + ": " + CONFIG.phoneDisplay : "";
+  $("phoneTxt").style.display = CONFIG.phoneDisplay ? "" : "none";
+  document.querySelectorAll(".lang button").forEach((b) => b.classList.toggle("on", b.dataset.l === lang));
+  renderSum();
+  renderChips();
+  render();
+}
+function renderSum() {
+  const t = T[lang], c = { ok: 0, low: 0, no: 0 };
+  DATA.forEach((it) => c[status(it)]++);
+  const f = (n) => n.toLocaleString(lang === "hu" ? "hu-HU" : "sk-SK");
+  $("sum").style.gridTemplateColumns = c.low ? "" : "1fr 1fr";
+  $("sum").innerHTML = `<div class="s-ok"><b>${f(c.ok)}</b><span>${t.nIn}</span></div>` + (c.low ? `<div class="s-low"><b>${f(c.low)}</b><span>${t.nLow}</span></div>` : "") + `<div class="s-no"><b>${f(c.no)}</b><span>${t.nNo}</span></div>`;
+}
+function renderChips() {
+  const keys = [...new Set(DATA.map((it) => it.cat))].filter(Boolean);
+  const wn = watch.filter((c) => DATA.some((it) => it.code === c)).length;
+  if (cat === "watch" && !wn) cat = "all";
+  if (cat !== "all" && cat !== "watch" && !keys.includes(cat)) cat = "all";
+  let h = `<button class="chip ${cat === "all" ? "on" : ""}" data-c="all">${T[lang].all}</button>`;
+  if (wn) h += `<button class="chip ${cat === "watch" ? "on" : ""}" data-c="watch">🔔 ${T[lang].watched(wn)}</button>`;
+  h += keys.map((k) => `<button class="chip ${cat === k ? "on" : ""}" data-c="${esc(k)}">${esc(catName(DATA.find((x) => x.cat === k)))}</button>`).join("");
+  $("chips").innerHTML = h;
+  $("chips").style.display = keys.length || wn ? "" : "none";
+}
+function render() {
+  const t = T[lang], words = norm($("q").value).split(/\s+/).filter(Boolean);
+  $("clr").style.display = $("q").value ? "block" : "none";
+  const rows = DATA.filter((it) => {
+    if (cat === "watch") {
+      if (!watch.includes(it.code)) return false;
+    } else if (cat !== "all" && it.cat !== cat) return false;
+    if (only && it.qty <= 0) return false;
+    const hay = norm(it.name + " " + it.n2 + " " + it.code + " " + it.ean + " " + catName(it));
+    return words.every((w) => hay.includes(w));
+  }).sort((a, b) => (a.qty <= 0) - (b.qty <= 0) || a.name.localeCompare(b.name, "sk"));
+  $("count").textContent = t.items(rows.length);
+  const total = rows.length;
+  const shown = rows.slice(0, MAXROWS);
+  if (loading) {
+    $("list").innerHTML = `<div class="empty">${t.loading}</div>`;
+    return;
+  }
+  if (!rows.length) {
+    $("list").innerHTML = `<div class="empty">${t.empty}</div>`;
+    return;
+  }
+  $("list").innerHTML = shown.map((it) => {
+    const s = status(it), w = watch.includes(it.code);
+    const meta = [it.code, it.n2, catName(it)].filter(Boolean).map(esc).join(" · ");
+    const qty = CONFIG.showQty && it.qty > 0 ? `<div class="qty">${num(it.qty, Number.isInteger(it.qty) ? 0 : 2)} ${esc(it.unit)}</div>` : "";
+    const price = CONFIG.showPrice && it.price > 0 ? `<div class="price">${num(it.price, 2)} €${it.unit ? " / " + esc(it.unit) : ""}</div>` : "";
+    return `<div class="item" data-i="${DATA.indexOf(it)}"><div><div class="name">${esc(it.name)}${w ? `<span class="bell">${BELL}</span>` : ""}</div>${meta ? `<div class="meta">${meta}</div>` : ""}${price}</div>
       <div class="right"><span class="badge ${s}">${t[s]}</span>${qty}</div></div>`;
-  }).join('')+(total>MAXROWS?`<div class="empty">${t.more(total-MAXROWS)}</div>`:'');
+  }).join("") + (total > MAXROWS ? `<div class="empty">${t.more(total - MAXROWS)}</div>` : "");
 }
-function openSheet(i){
-  const it=DATA[i], t=T[lang], s=status(it), w=watch.includes(it.code);
-  const meta=[it.code?t.code+': '+it.code:'',it.n2,it.ean?'EAN '+it.ean:'',catName(it)].filter(Boolean).map(esc).join(' · ');
-  const q=it.qty>0?`<div class="q">${num(it.qty,Number.isInteger(it.qty)?0:2)} <small>${esc(it.unit)} · ${t.onStock}</small></div>`:`<div class="q">0 <small>${esc(it.unit)}</small></div>`;
-  const p=(CONFIG.showPrice&&it.price>0)?`<div class="p">${num(it.price,2)} €<small>${t.perUnit} / ${esc(it.unit)} · ${t.vat}</small></div>`:'';
-  const wb=it.qty<=0?`<button class="watch ${w?'on':''}" id="watchBtn">${BELL}<span>${w?t.watching:t.watchBtn}</span></button>`:'';
-  $('sheet').innerHTML=`<div class="grab"></div><span class="badge ${s}">${t[s]}</span><h2 style="margin-top:10px">${esc(it.name)}</h2><div class="meta">${meta}</div>
-    <div class="big">${q}${p}</div><div class="info">${it.qty>0?t.info:t.noStockInfo}</div>${wb}<button class="close" id="closeBtn">${t.close}</button>`;
-  $('sheetWrap').classList.add('open'); $('closeBtn').onclick=closeSheet;
-  if($('watchBtn')) $('watchBtn').onclick=()=>toggleWatch(it.code);
+function openSheet(i) {
+  const it = DATA[i], t = T[lang], s = status(it), w = watch.includes(it.code);
+  const meta = [it.code ? t.code + ": " + it.code : "", it.n2, it.ean ? "EAN " + it.ean : "", catName(it)].filter(Boolean).map(esc).join(" · ");
+  const q = it.qty > 0 ? `<div class="q">${num(it.qty, Number.isInteger(it.qty) ? 0 : 2)} <small>${esc(it.unit)} · ${t.onStock}</small></div>` : `<div class="q">0 <small>${esc(it.unit)}</small></div>`;
+  const p = CONFIG.showPrice && it.price > 0 ? `<div class="p">${num(it.price, 2)} €<small>${t.perUnit} / ${esc(it.unit)} · ${t.vat}</small></div>` : "";
+  const wb = it.qty <= 0 ? `<button class="watch ${w ? "on" : ""}" id="watchBtn">${BELL}<span>${w ? t.watching : t.watchBtn}</span></button>` : "";
+  $("sheet").innerHTML = `<div class="grab"></div><span class="badge ${s}">${t[s]}</span><h2 style="margin-top:10px">${esc(it.name)}</h2><div class="meta">${meta}</div>
+    <div class="big">${q}${p}</div><div class="info">${it.qty > 0 ? t.info : t.noStockInfo}</div>${wb}<button class="close" id="closeBtn">${t.close}</button>`;
+  $("sheetWrap").classList.add("open");
+  $("closeBtn").onclick = closeSheet;
+  if ($("watchBtn")) $("watchBtn").onclick = () => toggleWatch(it.code);
 }
-function closeSheet(){ $('sheetWrap').classList.remove('open'); }
-
-// ---------- események ----------
-$('q').addEventListener('input',render);
-$('clr').addEventListener('click',()=>{ $('q').value=''; render(); $('q').focus(); });
-$('only').addEventListener('change',e=>{ only=e.target.checked; render(); });
-$('chips').addEventListener('click',e=>{ const b=e.target.closest('.chip'); if(!b) return; cat=b.dataset.c; renderChips(); render(); });
-$('list').addEventListener('click',e=>{ const el=e.target.closest('.item'); if(el) openSheet(+el.dataset.i); });
-$('sheetBg').addEventListener('click',closeSheet);
-$('callBtn').addEventListener('click',call);
-$('routeBtn').addEventListener('click',route);
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
-document.querySelectorAll('.lang button').forEach(b=>b.addEventListener('click',()=>{
-  lang=b.dataset.l; store.set('buko-lang',lang); closeSheet(); saveWatch(); applyLang(); }));
-
-if(NATIVE){
-  // a háttérfigyelő a natív tárolóban tartja a listát – onnan olvassuk vissza (amit közben értesített, az lekerül)
-  Runner.dispatchEvent({label:RUNNER,event:'getWatch',details:{}}).then(r=>{
-    if(r&&typeof r.watch==='string'){ try{ watch=JSON.parse(r.watch)||[]; store.set('buko-watch',r.watch); renderChips(); render(); }catch(e){}
-    saveWatch(); }
-  }).catch(()=>{});
-  if(AppP) AppP.addListener('resume',loadStock);
+function closeSheet() {
+  $("sheetWrap").classList.remove("open");
+}
+$("q").addEventListener("input", render);
+$("clr").addEventListener("click", () => {
+  $("q").value = "";
+  render();
+  $("q").focus();
+});
+$("only").addEventListener("change", (e) => {
+  only = e.target.checked;
+  render();
+});
+$("chips").addEventListener("click", (e) => {
+  const b = e.target.closest(".chip");
+  if (!b) return;
+  cat = b.dataset.c;
+  renderChips();
+  render();
+});
+$("list").addEventListener("click", (e) => {
+  const el = e.target.closest(".item");
+  if (el) openSheet(+el.dataset.i);
+});
+$("sheetBg").addEventListener("click", closeSheet);
+$("callBtn").addEventListener("click", call);
+$("routeBtn").addEventListener("click", route);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeSheet();
+});
+document.querySelectorAll(".lang button").forEach((b) => b.addEventListener("click", () => {
+  lang = b.dataset.l;
+  store.set("buko-lang", lang);
+  closeSheet();
+  saveWatch();
+  applyLang();
+}));
+if (NATIVE) {
+  Runner.dispatchEvent({ label: RUNNER, event: "getWatch", details: {} }).then((r) => {
+    if (r && typeof r.watch === "string") {
+      try {
+        watch = JSON.parse(r.watch) || [];
+        store.set("buko-watch", r.watch);
+        renderChips();
+        render();
+      } catch (e) {
+      }
+      saveWatch();
+    }
+  }).catch(() => {
+  });
+  if (AppP) AppP.addListener("resume", loadStock);
 }
 applyLang();
 loadStock();
-setInterval(loadStock,15*60*1000);
+setInterval(loadStock, 15 * 60 * 1e3);
 </script>
 </body>
 </html>
