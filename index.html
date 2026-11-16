@@ -15,7 +15,7 @@
 *{box-sizing:border-box}
 html,body{margin:0}
 body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);-webkit-text-size-adjust:100%}
-header{background:var(--bar);color:var(--acc-ink);padding:14px 14px 14px;position:sticky;top:0;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+header{background:var(--bar);color:var(--acc-ink);padding:calc(14px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 14px 14px;position:sticky;top:0;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,.12)}
 .wrap{max-width:720px;margin:0 auto}
 .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .brand b{display:block;font-size:18px;font-weight:700;letter-spacing:.2px}
@@ -49,7 +49,7 @@ main{padding:12px 12px 24px}
 .qty{font-size:13px;color:var(--muted);margin-top:5px;white-space:nowrap}
 .price{font-weight:600;font-size:14px;margin-top:2px;white-space:nowrap}
 .empty{text-align:center;color:var(--muted);padding:40px 0}
-footer{padding:4px 16px 34px;font-size:13px;color:var(--muted);line-height:1.6}
+footer{padding:4px 16px calc(34px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));font-size:13px;color:var(--muted);line-height:1.6}
 footer b{color:var(--ink);font-weight:600}
 .admin{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
 .admin label{color:var(--acc);font-weight:600;cursor:pointer}
@@ -66,7 +66,7 @@ footer b{color:var(--ink);font-weight:600}
 .item{cursor:pointer;transition:transform .08s}
 .item:active{transform:scale(.99)}
 .sheet-bg{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
-.sheet{position:fixed;left:0;right:0;bottom:0;max-width:720px;margin:0 auto;background:var(--card);border-radius:20px 20px 0 0;padding:10px 18px 26px;transform:translateY(100%);transition:transform .25s ease;z-index:21}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-width:720px;margin:0 auto;background:var(--card);border-radius:20px 20px 0 0;padding:10px 18px 26px;transform:translateY(100%);transition:transform .25s ease;z-index:21;padding-bottom:calc(26px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))}
 .open .sheet-bg{opacity:1;pointer-events:auto}.open .sheet{transform:none}
 .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
 .sheet h2{font-size:19px;margin:0 0 4px;line-height:1.3}
@@ -89,7 +89,7 @@ footer b{color:var(--ink);font-weight:600}
 .watch{width:100%;margin-top:14px;border:2px solid var(--acc);background:transparent;color:var(--acc);border-radius:12px;padding:12px;font:600 15px Inter,sans-serif;cursor:pointer;display:flex;gap:8px;align-items:center;justify-content:center}
 .watch.on{background:var(--acc);color:#fff}
 .watch svg{width:18px;height:18px}
-.toast{position:fixed;left:50%;top:18px;transform:translate(-50%,-30px);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;opacity:0;transition:all .25s;z-index:40;max-width:92%;text-align:center;pointer-events:none}
+.toast{position:fixed;left:50%;top:calc(18px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));transform:translate(-50%,-30px);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;opacity:0;transition:all .25s;z-index:40;max-width:92%;text-align:center;pointer-events:none}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .arrived{background:var(--ok-bg);color:var(--ok);border-radius:12px;padding:10px 12px;font-size:14px;font-weight:500;margin-bottom:10px;display:none}
 .phone-txt{font-size:12.5px;color:var(--muted);text-align:center;margin:-6px 0 12px}
@@ -323,7 +323,7 @@ const plug = (n) => {
   }
   return null;
 };
-const Notif = plug("LocalNotifications"), Launcher = plug("AppLauncher"), Runner = plug("BackgroundRunner"), AppP = plug("App");
+const Notif = plug("LocalNotifications"), Launcher = plug("AppLauncher"), Runner = plug("BackgroundRunner"), AppP = plug("App"), Bars = plug("SystemBars");
 let lang = "hu", cat = "all", only = false, isSample = true, watch = [];
 const mapItem = (x) => ({ code: String(x.code == null ? "" : x.code), cat: x.cat || "", name: x.name, n2: x.n2 || "", ean: x.ean || "", qty: +x.qty || 0, min: +x.min || 0, unit: x.unit || "", price: +x.price || 0 });
 const store = { get(k) {
@@ -668,6 +668,11 @@ if (NATIVE) {
   }
   try {
     if (AppP) AppP.addListener("resume", loadStock);
+  } catch (e) {
+  }
+  try {
+    if (Bars) Bars.setStyle({ style: "DARK", bar: "StatusBar" }).catch(() => {
+    });
   } catch (e) {
   }
 }
