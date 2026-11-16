@@ -140,7 +140,8 @@ const CONFIG = {
   phone: '+421908984927',        // a „Hívás” gomb ezt tárcsázza
   phoneDisplay: '0908 984 927',  // így jelenik meg a képernyőn
   mapsQuery: 'BUKÓ-firma s.r.o., Hadabuda 633/17, 079 01 Veľké Kapušany',
-  stockUrl: 'stock.json',   // most: az alkalmazásba csomagolt készlet; később az óránként frissülő nyilvános cím          // az óránként frissülő készlet JSON címe; üresen a minta adatokat mutatja
+  stockUrl: 'https://raw.githubusercontent.com/mateka64-lgtm/buko-keszlet/main/stock.json', // óránként frissül
+  fallbackUrl: 'stock.json',   // az alkalmazásba csomagolt tartalék, ha nincs internet és nincs mentett adat          // az óránként frissülő készlet JSON címe; üresen a minta adatokat mutatja
   showPrice: true, showQty: true, lowLimit: 0   // 0 = „kevés” csak ott, ahol az IFOsoft kártyán ki van töltve a Min. množstvo
 };
 const RUNNER = 'sk.bukofirma.keszlet.check';
@@ -247,12 +248,18 @@ function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('sho
 // ---------- adatok ----------
 async function loadStock(){
   if(!CONFIG.stockUrl) return;
+  if(await fetchStock(CONFIG.stockUrl)) return;
+  if(loading&&CONFIG.fallbackUrl&&await fetchStock(CONFIG.fallbackUrl)) return;
+  if(loading){ loading=false; $('list').innerHTML=`<div class="empty">${T[lang].loadErr}</div>`; }
+}
+async function fetchStock(url){
   try{
-    const u=/^https?:/.test(CONFIG.stockUrl)?CONFIG.stockUrl+(CONFIG.stockUrl.includes('?')?'&':'?')+'t='+Date.now():CONFIG.stockUrl;
+    const u=/^https?:/.test(url)?url+(url.includes('?')?'&':'?')+'t='+Date.now():url;
     const r=await fetch(u,{cache:'no-store'});
     const txt=await r.text(); const j=JSON.parse(txt);
-    if(useStock(j)){ loading=false; store.set('buko-stock',txt); checkArrived(); applyLang(); }
-  }catch(e){ if(loading){ loading=false; $('list').innerHTML=`<div class="empty">${T[lang].loadErr}</div>`; } }
+    if(useStock(j)){ loading=false; if(/^https?:/.test(url)) store.set('buko-stock',txt); checkArrived(); applyLang(); return true; }
+  }catch(e){}
+  return false;
 }
 
 // ---------- „Szólj, ha megjött” ----------
@@ -380,7 +387,8 @@ document.querySelectorAll('.lang button').forEach(b=>b.addEventListener('click',
 if(NATIVE){
   // a háttérfigyelő a natív tárolóban tartja a listát – onnan olvassuk vissza (amit közben értesített, az lekerül)
   Runner.dispatchEvent({label:RUNNER,event:'getWatch',details:{}}).then(r=>{
-    if(r&&typeof r.watch==='string'){ try{ watch=JSON.parse(r.watch)||[]; store.set('buko-watch',r.watch); renderChips(); render(); }catch(e){} }
+    if(r&&typeof r.watch==='string'){ try{ watch=JSON.parse(r.watch)||[]; store.set('buko-watch',r.watch); renderChips(); render(); }catch(e){}
+    saveWatch(); }
   }).catch(()=>{});
   if(AppP) AppP.addListener('resume',loadStock);
 }
