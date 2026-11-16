@@ -95,6 +95,7 @@ footer b{color:var(--ink);font-weight:600}
 .phone-txt{font-size:12.5px;color:var(--muted);text-align:center;margin:-6px 0 12px}
 </style>
 
+<script src="capacitor.js"></script>
 </head>
 <body>
 <header>
@@ -305,7 +306,18 @@ const SAMPLE = [
 ];
 const CAP = window.Capacitor;
 const NATIVE = !!(CAP && CAP.isNativePlatform && CAP.isNativePlatform());
-const plug = (n) => NATIVE ? CAP.registerPlugin(n) : null;
+const plug = (n) => {
+  if (!NATIVE) return null;
+  try {
+    if (typeof CAP.registerPlugin === "function") return CAP.registerPlugin(n);
+  } catch (e) {
+  }
+  try {
+    if (CAP.Plugins && CAP.Plugins[n]) return CAP.Plugins[n];
+  } catch (e) {
+  }
+  return null;
+};
 const Notif = plug("LocalNotifications"), Launcher = plug("AppLauncher"), Runner = plug("BackgroundRunner"), AppP = plug("App");
 let lang = "hu", cat = "all", only = false, isSample = true, watch = [];
 const mapItem = (x) => ({ code: String(x.code == null ? "" : x.code), cat: x.cat || "", name: x.name, n2: x.n2 || "", ean: x.ean || "", qty: +x.qty || 0, min: +x.min || 0, unit: x.unit || "", price: +x.price || 0 });
@@ -631,23 +643,29 @@ document.querySelectorAll(".lang button").forEach((b) => b.addEventListener("cli
   saveWatch();
   applyLang();
 }));
-if (NATIVE) {
-  Runner.dispatchEvent({ label: RUNNER, event: "getWatch", details: {} }).then((r) => {
-    if (r && typeof r.watch === "string") {
-      try {
-        watch = JSON.parse(r.watch) || [];
-        store.set("buko-watch", r.watch);
-        renderChips();
-        render();
-      } catch (e) {
-      }
-      saveWatch();
-    }
-  }).catch(() => {
-  });
-  if (AppP) AppP.addListener("resume", loadStock);
-}
 applyLang();
+if (NATIVE) {
+  try {
+    if (Runner) Runner.dispatchEvent({ label: RUNNER, event: "getWatch", details: {} }).then((r) => {
+      if (r && typeof r.watch === "string") {
+        try {
+          watch = JSON.parse(r.watch) || [];
+          store.set("buko-watch", r.watch);
+          renderChips();
+          render();
+        } catch (e) {
+        }
+        saveWatch();
+      }
+    }).catch(() => {
+    });
+  } catch (e) {
+  }
+  try {
+    if (AppP) AppP.addListener("resume", loadStock);
+  } catch (e) {
+  }
+}
 loadStock();
 setInterval(loadStock, 15 * 60 * 1e3);
 </script>
